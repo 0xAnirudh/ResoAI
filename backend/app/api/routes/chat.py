@@ -1,8 +1,10 @@
+import logging
 from fastapi import APIRouter, HTTPException
 from app.database.models import ChatRequest, ChatResponse, EscalationRequest
 from app.services.chat_service import process_chat_message, get_session_history
 from app.services.escalation_service import create_escalation
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/chat", response_model=ChatResponse)
@@ -15,6 +17,7 @@ async def chat_endpoint(request: ChatRequest):
         )
         return response
     except Exception as e:
+        logger.exception(f"Error processing chat request: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing chat request: {str(e)}")
 
 @router.get("/chat/history/{session_id}")

@@ -44,7 +44,15 @@ def invoke_llm(prompt: str) -> str:
     if llm:
         try:
             res = llm.invoke(prompt)
-            return res.content
+            if res and res.content is not None:
+                if isinstance(res.content, str):
+                    return res.content
+                elif isinstance(res.content, list):
+                    return "".join(
+                        part if isinstance(part, str) else str(part.get("text", "") if isinstance(part, dict) else part)
+                        for part in res.content
+                    )
+                return str(res.content)
         except Exception as e:
             logger.error(f"Gemini LLM invocation error: {e}")
             
