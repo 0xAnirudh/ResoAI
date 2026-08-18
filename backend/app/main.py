@@ -47,9 +47,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register API Routers
+# Register API Routers (supports both /api prefix and root endpoints)
 app.include_router(health.router, prefix=settings.API_PREFIX, tags=["Health"])
 app.include_router(chat.router, prefix=settings.API_PREFIX, tags=["Chat"])
+app.include_router(health.router, tags=["Health Direct"])
+app.include_router(chat.router, tags=["Chat Direct"])
 
 @app.get("/")
 async def root():
