@@ -10,6 +10,7 @@ import {
   Check, 
   X 
 } from 'lucide-react';
+import SpotlightCard from './SpotlightCard';
 
 function groupSessionsByDate(sessions) {
   const groups = {
@@ -305,10 +306,7 @@ export default function Sidebar({
     <aside className={`sidebar ${isOpen ? '' : 'collapsed'}`}>
       <div className="sidebar-header">
         <div className="brand-logo">
-          <div className="brand-icon-box">
-            <span>R</span>
-          </div>
-          <span>Reso AI</span>
+          <span className="brand-logo-text font-display">reso.ai</span>
         </div>
         <button 
           className="btn-sidebar-toggle"
@@ -320,10 +318,25 @@ export default function Sidebar({
       </div>
 
       <div className="new-chat-section">
-        <button className="btn-new-chat" onClick={onNewChat}>
-          <Plus size={14} />
-          <span>New Conversation</span>
-        </button>
+        <SpotlightCard
+          className="new-chat-spotlight-card"
+          spotlightColor="rgba(255, 255, 255, 0.2)"
+          onClick={onNewChat}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNewChat();
+            }
+          }}
+          title="Start a new conversation"
+        >
+          <div className="new-chat-content">
+            <Plus size={14} />
+            <span>New Conversation</span>
+          </div>
+        </SpotlightCard>
       </div>
 
       <div className="conversations-history">

@@ -1,19 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  PanelLeft, 
-  Globe, 
-  ChevronDown, 
-  Check, 
-  Volume2, 
-  VolumeX, 
-  Activity, 
-  Layers, 
-  AlertTriangle, 
-  UserCheck 
+import {
+  PanelLeft,
+  Globe,
+  ChevronDown,
+  Check,
+  Volume2,
+  VolumeX,
+  Activity,
+  Layers,
+  AlertTriangle,
+  UserCheck
 } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../hooks/useVoice';
 
-export default function Header({ 
+export default function Header({
   sidebarOpen,
   onToggleSidebar,
   inspectorOpen,
@@ -47,13 +47,18 @@ export default function Header({
     <header className="header">
       <div className="header-left">
         {!sidebarOpen && (
-          <button 
-            className="btn-sidebar-toggle"
-            onClick={onToggleSidebar}
-            title="Open Sidebar"
-          >
-            <PanelLeft size={15} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              className="btn-sidebar-toggle"
+              onClick={onToggleSidebar}
+              title="Open Sidebar"
+            >
+              <PanelLeft size={15} />
+            </button>
+            <div className="brand-logo">
+              <span className="brand-logo-text font-display">reso.ai</span>
+            </div>
+          </div>
         )}
       </div>
 
@@ -65,9 +70,9 @@ export default function Header({
             className="btn-header"
             onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
             title={`Select Language (${currentLangObj.name})`}
-            style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
               gap: '6px',
               padding: '6px 10px',
               height: '32px'
@@ -81,7 +86,7 @@ export default function Header({
           </button>
 
           {isLangMenuOpen && (
-            <div 
+            <div
               className="lang-dropdown-menu"
               style={{
                 position: 'absolute',
@@ -100,12 +105,12 @@ export default function Header({
                 animation: 'resoToastIn 0.15s ease-out forwards',
               }}
             >
-              <div 
-                style={{ 
-                  padding: '4px 8px', 
-                  fontSize: '10.5px', 
-                  fontFamily: 'var(--font-sans)', 
-                  textTransform: 'uppercase', 
+              <div
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '10.5px',
+                  fontFamily: 'var(--font-sans)',
+                  textTransform: 'uppercase',
                   fontWeight: 600,
                   color: 'var(--color-text-muted)',
                   letterSpacing: '0.04em'
@@ -182,7 +187,7 @@ export default function Header({
         </button>
 
         {/* Request Human Button */}
-        <button 
+        <button
           className={`btn-header ${isEscalated ? 'escalate' : ''}`}
           onClick={onEscalate}
           disabled={isEscalated}

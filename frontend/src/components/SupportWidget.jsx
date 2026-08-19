@@ -28,10 +28,7 @@ export default function SupportWidget({
         <div className="widget-popup-window">
           <div className="header" style={{ height: 48, padding: '0 14px' }}>
             <div className="header-left">
-              <div className="brand-icon-box" style={{ width: 22, height: 22, fontSize: '0.7rem' }}>
-                R
-              </div>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Reso AI</span>
+              <span className="brand-logo-text font-display" style={{ fontSize: '1rem' }}>reso.ai</span>
             </div>
             <button 
               className="btn-sidebar-toggle"

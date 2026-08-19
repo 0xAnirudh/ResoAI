@@ -246,10 +246,39 @@ code, kbd, samp, pre, .font-mono {
   display: flex;
   align-items: center;
   gap: 10px;
+  user-select: none;
+}
+
+.brand-logo-text {
+  font-family: var(--font-display);
+  font-size: 1.85rem;
   font-weight: 600;
-  font-size: 13px;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.04em;
   color: var(--color-text-bright);
+  line-height: 1;
+  display: inline-block;
+  transition: color 0.15s ease;
+}
+
+.brand-logo-img {
+  height: 22px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+/* Invert colors in dark mode for crisp white logo on transparent bg */
+html.dark .brand-logo-img,
+[data-theme="dark"] .brand-logo-img,
+:root .brand-logo-img {
+  filter: invert(1);
+}
+
+/* Normal black logo in light mode */
+html.light .brand-logo-img,
+[data-theme="light"] .brand-logo-img {
+  filter: none;
 }
 
 .brand-icon-box {
