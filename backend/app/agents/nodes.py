@@ -45,11 +45,16 @@ def communication_node(state: AgentState) -> Dict[str, Any]:
 
     if intent == "SEND_EMAIL":
         tool_used = "send_email"
-        # Extract email or use default
+        # Extract email address
         email_match = re.search(r"[\w\.-]+@[\w\.-]+", user_msg)
         to_email = email_match.group(0) if email_match else "customer@example.com"
-        subject = "Support Assistance & Information Request"
-        body = f"Hello,\n\nIn response to your query: '{user_msg}', we have processed your request.\n\nBest regards,\nAI Support Team"
+        
+        # Extract specific message body if user says "saying <msg>" or "message: <msg>"
+        saying_match = re.search(r"(?:saying|with message|that says|body:?)\s+(.+)", user_msg, re.IGNORECASE)
+        msg_content = saying_match.group(1).strip(" \"'") if saying_match else user_msg
+        
+        subject = f"Message from Reso AI Support ({to_email})"
+        body = f"Hello,\n\n{msg_content}\n\n---\nSent automatically by Reso AI Support Platform on behalf of Anirudh Chourey."
         tool_result = send_email(to_email, subject, body)
     else:
         tool_used = "make_phone_call"
@@ -76,9 +81,25 @@ def code_node(state: AgentState) -> Dict[str, Any]:
     user_msg = state.get("user_message", "")
     logger.info(f"--- Code Execution / Math Node for: '{user_msg}' ---")
 
-    # Extract math expression from query
-    expr_match = re.search(r"[\d\.\s\+\-\*\/\(\)\^%]+", user_msg)
-    expr = expr_match.group(0).strip() if expr_match else "100 * 0.15"
+    # 1. Percentage / Tip queries: e.g. "Calculate 15% tip on $184.50", "20% of 500"
+    pct_m = re.search(r"(\d+(?:\.\d+)?)\s*%", user_msg)
+    if pct_m:
+        pct = float(pct_m.group(1))
+        # Find all numbers (both floats and integers) in user message
+        all_nums = [float(n) for n in re.findall(r"\d+\.\d+|\d+", user_msg)]
+        # Filter out the percentage number itself
+        other_nums = [n for n in all_nums if n != pct]
+        if other_nums:
+            base_amt = other_nums[0]
+            expr = f"{base_amt} * {pct / 100.0}"
+        else:
+            expr = f"{pct / 100.0}"
+    else:
+        # 2. General arithmetic expressions
+        cleaned = re.sub(r"(?i)\b(calculate|what is|compute|eval|solve|math|tip)\b", " ", user_msg)
+        cleaned = cleaned.replace("$", "").replace(",", "")
+        expr_match = re.search(r"[\d\.\s\+\-\*\/\(\)\^a-zA-Z_]+", cleaned)
+        expr = expr_match.group(0).strip() if expr_match else "184.50 * 0.15"
 
     tool_result = execute_python_calc(expr)
 

@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,7 @@ def send_email(to_email: str, subject: str, body: str) -> Dict[str, Any]:
     Uses SMTP or returns confirmation payload for automated agent workflow.
     """
     logger.info(f"Executing send_email tool to: '{to_email}', subject: '{subject}'")
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     
     # Check if SMTP parameters are configured in env
     smtp_host = os.environ.get("SMTP_HOST")
@@ -22,12 +24,13 @@ def send_email(to_email: str, subject: str, body: str) -> Dict[str, Any]:
             import smtplib
             from email.mime.text import MIMEText
             from email.mime.multipart import MIMEMultipart
+            from email.utils import formataddr
 
             msg = MIMEMultipart()
-            msg['From'] = smtp_user
+            msg['From'] = formataddr(("Reso AI", smtp_user))
             msg['To'] = to_email
             msg['Subject'] = subject
-            msg.attach(MIMEText(body, 'plain'))
+            msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
             server = smtplib.SMTP(smtp_host, int(smtp_port))
             server.starttls()
@@ -35,15 +38,24 @@ def send_email(to_email: str, subject: str, body: str) -> Dict[str, Any]:
             server.send_message(msg)
             server.quit()
 
+            logger.info(f"Successfully delivered email via SMTP to {to_email}")
             return {
                 "success": True,
                 "status": "Delivered",
                 "to_email": to_email,
                 "subject": subject,
-                "provider": "SMTP Server"
+                "provider": "Gmail SMTP (Live)",
+                "timestamp": now_str
             }
         except Exception as e:
             logger.error(f"SMTP email sending error: {e}")
+            return {
+                "success": False,
+                "status": "SMTP Delivery Failed",
+                "error": str(e),
+                "to_email": to_email,
+                "timestamp": now_str
+            }
 
     # Default confirmation payload for agent workflow execution
     return {
@@ -52,7 +64,7 @@ def send_email(to_email: str, subject: str, body: str) -> Dict[str, Any]:
         "to_email": to_email,
         "subject": subject,
         "body_preview": body[:100] + ("..." if len(body) > 100 else ""),
-        "timestamp": "2026-08-11 23:30:00 UTC"
+        "timestamp": now_str
     }
 
 def make_phone_call(phone_number: str, message: str) -> Dict[str, Any]:
@@ -61,6 +73,7 @@ def make_phone_call(phone_number: str, message: str) -> Dict[str, Any]:
     Uses Twilio REST API if configured, else returns phone call dispatch confirmation payload.
     """
     logger.info(f"Executing make_phone_call tool to: '{phone_number}'")
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     
     twilio_sid = os.environ.get("TWILIO_ACCOUNT_SID")
     twilio_token = os.environ.get("TWILIO_AUTH_TOKEN")
@@ -82,7 +95,8 @@ def make_phone_call(phone_number: str, message: str) -> Dict[str, Any]:
                 "status": res_data.get("status", "Queued"),
                 "phone_number": phone_number,
                 "call_sid": res_data.get("sid", "CALL_123456"),
-                "provider": "Twilio Voice API"
+                "provider": "Twilio Voice API",
+                "timestamp": now_str
             }
         except Exception as e:
             logger.error(f"Twilio call error: {e}")
@@ -93,5 +107,6 @@ def make_phone_call(phone_number: str, message: str) -> Dict[str, Any]:
         "phone_number": phone_number,
         "spoken_message": message,
         "duration": "00:45",
-        "call_id": "CALL_" + os.urandom(4).hex().upper()
+        "call_id": "CALL_" + os.urandom(4).hex().upper(),
+        "timestamp": now_str
     }

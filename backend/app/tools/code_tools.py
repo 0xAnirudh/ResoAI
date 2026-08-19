@@ -1,5 +1,6 @@
 import math
 import logging
+import re
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -10,10 +11,11 @@ def execute_python_calc(expression: str) -> Dict[str, Any]:
     """
     logger.info(f"Executing Python Math Calculation: '{expression}'")
     try:
-        # Clean expression
-        clean_expr = expression.replace("^", "**").strip()
+        # Clean expression and convert power operators & standalone percentages
+        clean_expr = expression.replace("^", "**").replace("$", "").strip()
+        clean_expr = re.sub(r"(\d+(?:\.\d+)?)\s*%", r"(\1 / 100.0)", clean_expr)
         
-        # Allowed mathematical names
+        # Allowed mathematical functions and constants
         safe_dict = {
             "math": math,
             "abs": abs,
@@ -32,9 +34,17 @@ def execute_python_calc(expression: str) -> Dict[str, Any]:
         }
         
         result = eval(clean_expr, {"__builtins__": None}, safe_dict)
+        
+        # Format clean float representation
+        if isinstance(result, float):
+            result = round(result, 4)
+            if result.is_integer():
+                result = int(result)
+
         return {
             "success": True,
             "expression": expression,
+            "evaluated_expression": clean_expr,
             "result": result
         }
     except Exception as e:

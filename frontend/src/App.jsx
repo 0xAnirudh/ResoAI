@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useLocation, useParams, Routes, Route } from 'react-router-dom';
+import { X, Sparkles } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import EmptyState from './components/EmptyState';
@@ -6,14 +8,26 @@ import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import AgentInspector from './components/AgentInspector';
 import SupportWidget from './components/SupportWidget';
+import SettingsModal from './components/SettingsModal';
 import { sendChatMessage, escalateSession } from './services/api';
 import { useVoice } from './hooks/useVoice';
+import { getSavedSessions, saveSession, deleteSession, renameSession } from './services/chatStorage';
 
 const generateSessionId = () => 'sess_' + Math.random().toString(36).substring(2, 9);
 const USER_ID = 'user123';
 
 export default function App() {
-  const [sessionId, setSessionId] = useState(generateSessionId());
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [sessions, setSessions] = useState(() => getSavedSessions());
+  
+  // Extract active session ID from URL route (/c/:id or /)
+  const routeSessionId = location.pathname.startsWith('/c/') 
+    ? location.pathname.replace('/c/', '') 
+    : null;
+
+  const [sessionId, setSessionId] = useState(() => routeSessionId || generateSessionId());
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isEscalated, setIsEscalated] = useState(false);
@@ -22,6 +36,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [isWidgetMode, setIsWidgetMode] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const messagesEndRef = useRef(null);
 
@@ -32,8 +47,6 @@ export default function App() {
     isSpeaking,
     autoSpeak,
     setAutoSpeak,
-    handsFreeMode,
-    setHandsFreeMode,
     transcript,
     startListening,
     stopListening,
@@ -43,6 +56,34 @@ export default function App() {
 
   const [activeSpeechIdx, setActiveSpeechIdx] = useState(null);
 
+  // Sync state whenever URL route changes (/ vs /c/:id)
+  useEffect(() => {
+    const currentSaved = getSavedSessions();
+    setSessions(currentSaved);
+
+    if (location.pathname === '/' || location.pathname === '') {
+      // Clean root: fresh new chat
+      setSessionId(generateSessionId());
+      setMessages([]);
+      setIsEscalated(false);
+      setActiveSpeechIdx(null);
+      stopSpeaking();
+    } else if (location.pathname.startsWith('/c/')) {
+      const targetId = location.pathname.replace('/c/', '');
+      const existing = currentSaved.find((s) => s.id === targetId);
+      setSessionId(targetId);
+      if (existing) {
+        setMessages(existing.messages || []);
+        setIsEscalated(Boolean(existing.isEscalated));
+      } else {
+        setMessages([]);
+        setIsEscalated(false);
+      }
+      setActiveSpeechIdx(null);
+      stopSpeaking();
+    }
+  }, [location.pathname]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -50,6 +91,27 @@ export default function App() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, loading]);
+
+  // Sync active conversation changes into 60-day storage
+  useEffect(() => {
+    if (messages.length > 0 && sessionId) {
+      const existingSession = sessions.find((s) => s.id === sessionId);
+      const firstUserMsg = messages.find((m) => m.role === 'user');
+      const title = existingSession?.title || (firstUserMsg
+        ? firstUserMsg.content.slice(0, 32) + (firstUserMsg.content.length > 32 ? '...' : '')
+        : `Session ${sessionId.slice(-6)}`);
+
+      const currentSessionData = {
+        id: sessionId,
+        title,
+        messages,
+        isEscalated,
+      };
+
+      const updated = saveSession(currentSessionData);
+      setSessions(updated);
+    }
+  }, [messages, isEscalated, sessionId]);
 
   const handleToggleSpeak = (text, idx) => {
     if (activeSpeechIdx === idx && isSpeaking) {
@@ -65,12 +127,20 @@ export default function App() {
   };
 
   const handleSendMessage = async (text) => {
+    let activeId = sessionId;
+    // If user is currently on the clean root '/', transition URL to /c/:sessionId
+    if (location.pathname === '/' || !location.pathname.startsWith('/c/')) {
+      activeId = generateSessionId();
+      setSessionId(activeId);
+      navigate(`/c/${activeId}`, { replace: true });
+    }
+
     const userMsg = { role: 'user', content: text };
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
     try {
-      const data = await sendChatMessage(sessionId, USER_ID, text);
+      const data = await sendChatMessage(activeId, USER_ID, text);
       const assistantMsg = {
         role: 'assistant',
         content: data.response,
@@ -87,7 +157,6 @@ export default function App() {
         setIsEscalated(true);
       }
 
-      // Voice output ONLY plays if user has explicitly enabled autoSpeak toggle
       if (autoSpeak && data.response) {
         setActiveSpeechIdx(messages.length + 1);
         speak(data.response, lang, () => {
@@ -110,7 +179,6 @@ export default function App() {
     }
   };
 
-
   const handleManualEscalate = async () => {
     if (isEscalated) return;
     try {
@@ -132,48 +200,28 @@ export default function App() {
   const handleNewSession = () => {
     stopSpeaking();
     stopListening();
-    setSessionId(`session_${Date.now()}`);
-    setIsEscalated(false);
-    setMessages([]);
-    setActiveSpeechIdx(null);
+    navigate('/');
   };
 
-  // If in Floating Widget Mode demo
-  if (isWidgetMode) {
-    return (
-      <div className="app-frame">
-        <Header
-          sidebarOpen={false}
-          onToggleSidebar={() => {}}
-          inspectorOpen={false}
-          onToggleInspector={() => {}}
-          isEscalated={isEscalated}
-          onEscalate={handleManualEscalate}
-          lang={lang}
-          onLangChange={setLang}
-          autoSpeak={autoSpeak}
-          onToggleAutoSpeak={() => setAutoSpeak(!autoSpeak)}
-          handsFreeMode={handsFreeMode}
-          onToggleHandsFree={() => setHandsFreeMode(!handsFreeMode)}
-          isWidgetMode={isWidgetMode}
-          onToggleWidgetMode={() => setIsWidgetMode(false)}
-        />
-        <div style={{ padding: 40, color: 'var(--text-secondary)' }}>
-          <h3>Embeddable Support Widget Demo</h3>
-          <p>Look at the bottom right corner of the page to interact with the floating support widget!</p>
-        </div>
-        <SupportWidget 
-          messages={messages}
-          onSendMessage={handleSendMessage}
-          loading={loading}
-          onSpeakMessage={(txt) => speak(txt, lang)}
-          isSpeaking={isSpeaking}
-          onStopSpeaking={stopSpeaking}
-        />
+  const handleSelectSession = (targetSessionId) => {
+    stopSpeaking();
+    stopListening();
+    navigate(`/c/${targetSessionId}`);
+  };
 
-      </div>
-    );
-  }
+  const handleDeleteSession = (targetSessionId) => {
+    const updated = deleteSession(targetSessionId);
+    setSessions(updated);
+
+    if (sessionId === targetSessionId || location.pathname === `/c/${targetSessionId}`) {
+      navigate('/');
+    }
+  };
+
+  const handleRenameSession = (targetSessionId, newTitle) => {
+    const updated = renameSession(targetSessionId, newTitle);
+    setSessions(updated);
+  };
 
   const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant');
 
@@ -184,6 +232,11 @@ export default function App() {
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         onNewChat={handleNewSession}
         sessionId={sessionId}
+        sessions={sessions}
+        onSelectSession={handleSelectSession}
+        onDeleteSession={handleDeleteSession}
+        onRenameSession={handleRenameSession}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       <main className="main-chat-container">
@@ -198,12 +251,43 @@ export default function App() {
           onLangChange={setLang}
           autoSpeak={autoSpeak}
           onToggleAutoSpeak={() => setAutoSpeak(!autoSpeak)}
-          handsFreeMode={handsFreeMode}
-          onToggleHandsFree={() => setHandsFreeMode(!handsFreeMode)}
           isWidgetMode={isWidgetMode}
-          onToggleWidgetMode={() => setIsWidgetMode(true)}
+          onToggleWidgetMode={() => setIsWidgetMode(!isWidgetMode)}
         />
 
+        {/* Dismissible Widget Demo Top Banner */}
+        {isWidgetMode && (
+          <div
+            style={{
+              backgroundColor: 'var(--color-bg-elevated)',
+              borderBottom: '1px solid var(--color-border-grid)',
+              padding: '10px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '12px',
+              color: 'var(--color-text-bright)',
+              zIndex: 20,
+              animation: 'resoToastIn 0.25s ease-out forwards',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles size={14} style={{ color: 'var(--color-accent-amber)', flexShrink: 0 }} />
+              <span>
+                <strong>Embeddable Support Widget Demo:</strong> Look at the bottom right corner of the page to interact with the floating support widget!
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn-sidebar-toggle"
+              onClick={() => setIsWidgetMode(false)}
+              style={{ padding: '2px 6px' }}
+              title="Close demo banner"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         <div className="chat-viewport">
           {messages.length === 0 ? (
@@ -222,8 +306,6 @@ export default function App() {
                   }}
                 />
               ))}
-
-
 
               {loading && (
                 <div className="thinking-card">
@@ -254,6 +336,24 @@ export default function App() {
         isOpen={inspectorOpen}
         onClose={() => setInspectorOpen(false)}
         lastMessage={lastAssistantMsg}
+      />
+
+      {/* Floating Support Widget (appears at bottom right) */}
+      {isWidgetMode && (
+        <SupportWidget 
+          messages={messages}
+          onSendMessage={handleSendMessage}
+          loading={loading}
+          onSpeakMessage={(txt) => speak(txt, lang)}
+          isSpeaking={isSpeaking}
+          onStopSpeaking={stopSpeaking}
+        />
+      )}
+
+      {/* Settings & Support Modal */}
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
       />
     </div>
   );
